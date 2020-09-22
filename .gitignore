@@ -1,5 +1,7 @@
 bindings
 build
+cmake-build-debug/
+.idea
 *.exe
 *.dll
 imgui.ini
