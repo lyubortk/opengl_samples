@@ -10,6 +10,7 @@ find_package(glfw CONFIG)
 find_package(glew CONFIG)
 find_package(fmt CONFIG)
 find_package(glm CONFIG)
+find_package(stb CONFIG)
 
 add_executable( opengl-imgui-sample
                 main.cpp
@@ -26,7 +27,9 @@ add_custom_command(TARGET opengl-imgui-sample
     POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/assets/simple-shader.vs ${PROJECT_BINARY_DIR}
     COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/assets/simple-shader.fs ${PROJECT_BINARY_DIR}
+    COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/assets/texture_red.png ${PROJECT_BINARY_DIR}
+    COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/assets/texture_blue.png ${PROJECT_BINARY_DIR}
 )
 
 target_compile_definitions(opengl-imgui-sample PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)
-target_link_libraries(opengl-imgui-sample imgui::imgui GLEW::glew_s glfw::glfw fmt::fmt glm::glm)
+target_link_libraries(opengl-imgui-sample imgui::imgui GLEW::glew_s glfw::glfw fmt::fmt glm::glm stb::stb)

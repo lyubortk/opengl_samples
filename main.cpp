@@ -1,6 +1,9 @@
+#pragma optimize("", off)
+
 #include <iostream>
 #include <vector>
 #include <chrono>
+#include <string>
 
 #include <fmt/format.h>
 
@@ -14,11 +17,10 @@
 // Include glfw3.h after our OpenGL definitions
 #include <GLFW/glfw3.h>
 
-// Math constant and routines for OpenGL interop
-#include <glm/gtc/constants.hpp>
-#include <glm/gtx/transform.hpp>
-#include <glm/glm.hpp>
-#include <glm/gtc/type_ptr.hpp>
+// STB, load images
+#define STB_IMAGE_IMPLEMENTATION
+
+#include <stb_image.h>
 
 #include "opengl_shader.h"
 
@@ -85,7 +87,7 @@ void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) {
     zoom = new_zoom;
 }
 
-void create_triangle(GLuint &vbo, GLuint &vao, GLuint &ebo) {
+void create_triangles(GLuint &vbo, GLuint &vao, GLuint &ebo) {
     float triangle_vertices[] = {
             -1.0f, 1.0f,
             1.0f, 1.0f,
@@ -110,6 +112,18 @@ void create_triangle(GLuint &vbo, GLuint &vao, GLuint &ebo) {
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+}
+
+void load_image(GLuint &texture, const std::string &name) {
+    int width, height, channels;
+    unsigned char *image = stbi_load(name.c_str(), &width, &height, &channels, STBI_rgb);
+
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_1D, texture);
+    glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB8, width, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
+    glGenerateMipmap(GL_TEXTURE_1D);
+
+    stbi_image_free(image);
 }
 
 int main(int, char **) {
@@ -139,9 +153,14 @@ int main(int, char **) {
         return 1;
     }
 
+    GLuint texture_red;
+    GLuint texture_blue;
+    load_image(texture_red, "texture_red.png");
+    load_image(texture_blue, "texture_blue.png");
+
     // create our geometries
     GLuint vbo, vao, ebo;
-    create_triangle(vbo, vao, ebo);
+    create_triangles(vbo, vao, ebo);
 
     // init shader
     shader_t shader("simple-shader.vs", "simple-shader.fs");
@@ -170,7 +189,7 @@ int main(int, char **) {
         glViewport(0, 0, display_w, display_h);
 
         // Fill background with solid color
-        glClearColor(0.30f, 0.55f, 0.60f, 1.00f);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.00f);
         glClear(GL_COLOR_BUFFER_BIT);
 
         // Gui start new frame
@@ -183,7 +202,11 @@ int main(int, char **) {
         static int iterations = 50.0;
         ImGui::SliderInt("Iterations", &iterations, 10, 1000);
         static float seed[] = {-0.4, -0.6};
-        ImGui::SliderFloat2("Seed (c)", seed, -1.0, 1.0);
+        ImGui::DragFloat2("Seed (c)", seed, 0.003, -1.0, 1.0);
+        static int color = 0;
+        ImGui::RadioButton("Red", &color, 0);
+        ImGui::SameLine();
+        ImGui::RadioButton("Blue", &color, 1);
         ImGui::End();
 
         // Pass the parameters to the shader as uniforms
@@ -194,13 +217,25 @@ int main(int, char **) {
         shader.set_uniform("u_display_h", display_h);
         shader.set_uniform("u_display_min", std::min(display_h, display_w));
         shader.set_uniform("u_zoom", zoom);
+        shader.set_uniform("u_texture", int(0));
 
         // Bind triangle shader
         shader.use();
+        glActiveTexture(GL_TEXTURE0);
+        if (color == 0) {
+            glBindTexture(GL_TEXTURE_1D, texture_red);
+        } else {
+            glBindTexture(GL_TEXTURE_1D, texture_blue);
+        }
+        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+
         // Bind vertex array = buffers + indices
         glBindVertexArray(vao);
         // Execute draw call
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        glBindTexture(GL_TEXTURE_1D, 0);
         glBindVertexArray(0);
 
         // Generate gui render commands
