@@ -1,25 +1,32 @@
 #version 330 core
 
-out vec4 o_frag_color;
+// uniform sampler1D tex;
+uniform vec2 u_c;
+uniform int u_iter;
+uniform int u_display_w;
+uniform int u_display_h;
+uniform int u_display_min;
+uniform vec2 u_shift;
+uniform float u_zoom;
 
-struct vx_output_t
-{
-    vec3 color;
-};
+void main() {
+    vec2 z;
+    z.x = (gl_FragCoord.x * 2.0 - u_display_w) / u_display_min;
+    z.y = (gl_FragCoord.y * 2.0 - u_display_h) / u_display_min;
 
-in vx_output_t v_out;
+    z.x = z.x * u_zoom + u_shift.x;
+    z.y = z.y * u_zoom + u_shift.y;
 
-uniform vec3 u_color;
-uniform float u_time;
+    int i;
+    for(i=0; i<u_iter; i++) {
+        float x = (z.x * z.x - z.y * z.y) + u_c.x;
+        float y = (z.y * z.x + z.x * z.y) + u_c.y;
 
-void main()
-{
-    float animation = 0.5 + sin(5 * u_time) * sin(5 * u_time);
-    //o_frag_color = vec4(animation * v_out.color * u_color,1.0);
+        if((x * x + y * y) > 4.0) break;
+        z.x = x;
+        z.y = y;
+    }
 
-    float value = 0;
-    if (int(v_out.color.x * 20) % 2 == 0 ^^ int(v_out.color.y * 20) % 2 == 0)
-      value = 1;
-    o_frag_color = vec4(vec3(value),1.0);
-
+//     gl_FragColor = texture1D(tex, (i == iter ? 0.0 : float(i)) / 100.0);
+       gl_FragColor = vec4(i * 1.0 / u_iter, 0, 0, 1);
 }
