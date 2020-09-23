@@ -25,5 +25,5 @@ void main() {
         z.y = y;
     }
 
-    gl_FragColor = texture1D(u_texture, i * 1.0 / u_iter);
+    gl_FragColor = texture(u_texture, i * 1.0 / u_iter);
 }
