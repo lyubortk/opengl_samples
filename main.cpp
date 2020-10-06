@@ -22,6 +22,10 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
+
+#include <tiny_obj_loader.h>
+
 #include "opengl_shader.h"
 
 static void glfw_error_callback(int error, const char *description) {
@@ -77,7 +81,7 @@ void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) {
     radius = std::max(radius, 0.5f);
 }
 
-void create_environment(GLuint &vbo, GLuint &vao, GLuint &ebo) {
+void create_environment(GLuint &vbo, GLuint &vao) {
     float environmentVertices[] = {
             -1.0f, 1.0f, -1.0f,
             -1.0f, -1.0f, -1.0f,
@@ -130,35 +134,56 @@ void create_environment(GLuint &vbo, GLuint &vao, GLuint &ebo) {
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *) 0);
 }
 
-void create_triangle(GLuint &vbo, GLuint &vao, GLuint &ebo) {
-    // create the triangle
-    float triangle_vertices[] = {
-            0.0f, 0.25f, 0.0f,    // position vertex 1
-            1.0f, 0.0f, 0.0f,     // color vertex 1
+int create_object(GLuint &vbo, GLuint &vao) {
+    std::string inputfile = "object/ashtray.obj";
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
 
-            0.25f, -0.25f, 0.0f,  // position vertex 1
-            0.0f, 1.0f, 0.0f,     // color vertex 1
+    std::string err;
 
-            -0.25f, -0.25f, 0.0f, // position vertex 1
-            0.0f, 0.0f, 1.0f,     // color vertex 1
-    };
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, inputfile.c_str(), "object/");
+    if (!ret) {
+        exit(1);
+    }
 
-    unsigned int triangle_indices[] = {
-            0, 1, 2};
+    std::vector<float> buffer_data;
+
+// Loop over shapes
+    for (size_t s = 0; s < shapes.size(); s++) {
+        // Loop over faces(polygon)
+        size_t index_offset = 0;
+        for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+            int fv = shapes[s].mesh.num_face_vertices[f];
+
+            // Loop over vertices in the face.
+            for (size_t v = 0; v < fv; v++) {
+                // access to vertex
+                tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+                tinyobj::real_t vx = attrib.vertices[3 * idx.vertex_index + 0];
+                tinyobj::real_t vy = attrib.vertices[3 * idx.vertex_index + 1];
+                tinyobj::real_t vz = attrib.vertices[3 * idx.vertex_index + 2];
+                tinyobj::real_t nx = attrib.normals[3 * idx.normal_index + 0];
+                tinyobj::real_t ny = attrib.normals[3 * idx.normal_index + 1];
+                tinyobj::real_t nz = attrib.normals[3 * idx.normal_index + 2];
+                float data[] = {vx, vy, vz, nx, ny, nz};
+                buffer_data.insert(buffer_data.end(), data, data + 6);
+            }
+            index_offset += fv;
+        }
+    }
+
     glGenVertexArrays(1, &vao);
     glGenBuffers(1, &vbo);
-    glGenBuffers(1, &ebo);
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_vertices), triangle_vertices, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(triangle_indices), triangle_indices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *) 0);
+    glBufferData(GL_ARRAY_BUFFER, buffer_data.size() * sizeof(float), &(buffer_data[0]), GL_STATIC_DRAW);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *) (3 * sizeof(float)));
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *) 0);
     glEnableVertexAttribArray(1);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *) (3 * sizeof(float)));
+
+    return buffer_data.size() / 6;
 }
 
 void load_environment_cubemap(GLuint &texture) {
@@ -219,10 +244,10 @@ int main(int, char **) {
     }
 
     // create our geometries
-    GLuint object_vbo, object_vao, object_ebo;
-    create_triangle(object_vbo, object_vao, object_ebo);
-    GLuint environment_vbo, environment_vao, environment_ebo;
-    create_environment(environment_vbo, environment_vao, environment_ebo);
+    GLuint object_vbo, object_vao;
+    int object_triangles = create_object(object_vbo, object_vao);
+    GLuint environment_vbo, environment_vao;
+    create_environment(environment_vbo, environment_vao);
 
     GLuint environment_texture;
     load_environment_cubemap(environment_texture);
@@ -234,6 +259,8 @@ int main(int, char **) {
     glfwSetCursorPosCallback(window, cursor_callback);
     glfwSetScrollCallback(window, scroll_callback);
 
+    glEnable(GL_DEPTH_TEST);
+
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
 
@@ -244,42 +271,62 @@ int main(int, char **) {
         // Set viewport to fill the whole window area
         glViewport(0, 0, display_w, display_h);
 
-        // Fill background with solid color
-        glClearColor(0.30f, 0.55f, 0.60f, 1.00f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        auto cartesian_coordiantes = glm::vec3(
+        auto camera_position = glm::vec3(
                 glm::cos(theta) * glm::cos(phi) * radius,
                 glm::sin(phi) * radius,
                 glm::sin(theta) * glm::cos(phi) * radius
         );
         auto projection = glm::perspective<float>(glm::radians(90.0f), 1.3, 0.1, 100);
 
-        auto object_view = glm::lookAt<float>(cartesian_coordiantes, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
-        auto object_mvp = projection * object_view;
+        auto object_model = glm::translate(
+                glm::scale(glm::identity<glm::mat4>(), glm::vec3(0.025, 0.025, 0.025)),
+                glm::vec3(0, -3, 0)
+        );
+        auto object_view = glm::lookAt<float>(camera_position, glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+        auto object_view_projection = projection * object_view;
 
-        auto environment_view = glm::lookAt<float>(glm::vec3(0, 0, 0), -cartesian_coordiantes, glm::vec3(0, 1, 0));
-        auto environment_mvp = projection * environment_view;
+        auto environment_view = glm::lookAt<float>(glm::vec3(0, 0, 0), -camera_position, glm::vec3(0, 1, 0));
+        auto environment_view_projection = projection * environment_view;
 
-        glDepthMask(GL_FALSE);
+        glDepthMask(GL_TRUE);
+        glColorMask(1,1,1,1);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
         environment_shader.use();
-        environment_shader.set_uniform("u_mvp", glm::value_ptr(environment_mvp));
-        environment_shader.set_uniform("environment", int(0));
+        environment_shader.set_uniform("u_view_projection", glm::value_ptr(environment_view_projection));
+        environment_shader.set_uniform("u_environment", int(0));
         glBindVertexArray(environment_vao);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_CUBE_MAP, environment_texture);
+
+        // draw environment cube without setting z
+        glDepthMask(GL_FALSE);
+        glColorMask(1,1,1,1);
         glDrawArrays(GL_TRIANGLES, 0, 36);
 
-        glDepthMask(GL_TRUE);
-        // Bind triangle shader
         object_shader.use();
-        object_shader.set_uniform("u_mvp", glm::value_ptr(object_mvp));
-        // Bind vertex array = buffers + indices
+        object_shader.set_uniform("u_view_projection", glm::value_ptr(object_view_projection));
+        object_shader.set_uniform("u_model", glm::value_ptr(object_model));
+        object_shader.set_uniform("u_camera_pos", camera_position.x, camera_position.y, camera_position.z);
+        object_shader.set_uniform("u_environment", int(0));
+        object_shader.set_uniform("u_refractive_index", 1.1f);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, environment_texture);
         glBindVertexArray(object_vao);
-        // Execute draw call
-        glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
 
+        // Pre z buffer pass for object
+        glDepthMask(GL_TRUE);
+        glColorMask(0,0,0,0);
+        glDepthFunc(GL_LESS);
+        glDrawArrays(GL_TRIANGLES, 0, object_triangles);
+
+        // Draw object
+        glDepthMask(GL_FALSE);
+        glColorMask(1,1,1,1);
+        glDepthFunc(GL_LEQUAL);
+        glDrawArrays(GL_TRIANGLES, 0, object_triangles);
+
+        glBindVertexArray(0);
         // Swap the backbuffer with the frontbuffer that is used for screen display
         glfwSwapBuffers(window);
     }

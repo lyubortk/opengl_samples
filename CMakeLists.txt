@@ -10,6 +10,7 @@ find_package(glew CONFIG)
 find_package(fmt CONFIG)
 find_package(glm CONFIG)
 find_package(stb CONFIG)
+find_package(tinyobjloader CONFIG)
 
 add_executable( opengl-imgui-sample
                 main.cpp
@@ -24,7 +25,8 @@ add_custom_command(TARGET opengl-imgui-sample
     POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/assets/shaders ${PROJECT_BINARY_DIR}/shaders
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/assets/cubemap ${PROJECT_BINARY_DIR}/cubemap
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/assets/object ${PROJECT_BINARY_DIR}/object
 )
 
 target_compile_definitions(opengl-imgui-sample PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)
-target_link_libraries(opengl-imgui-sample GLEW::glew_s glfw::glfw fmt::fmt glm::glm stb::stb)
+target_link_libraries(opengl-imgui-sample GLEW::glew_s glfw::glfw fmt::fmt glm::glm stb::stb tinyobjloader::tinyobjloader)
