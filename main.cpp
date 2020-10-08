@@ -11,6 +11,11 @@
 // Include glfw3.h after our OpenGL definitions
 #include <GLFW/glfw3.h>
 
+// Imgui + bindings
+#include "imgui.h"
+#include "bindings/imgui_impl_glfw.h"
+#include "bindings/imgui_impl_opengl3.h"
+
 // STB, load images
 #define STB_IMAGE_IMPLEMENTATION
 
@@ -256,6 +261,14 @@ int main(int, char **) {
     shader_t object_shader("shaders/object-shader.vs", "shaders/object-shader.fs");
     shader_t environment_shader("shaders/environment-shader.vs", "shaders/environment-shader.fs");
 
+    // Setup GUI context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO &io = ImGui::GetIO();
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init(glsl_version);
+    ImGui::StyleColorsDark();
+
     glfwSetCursorPosCallback(window, cursor_callback);
     glfwSetScrollCallback(window, scroll_callback);
 
@@ -270,6 +283,17 @@ int main(int, char **) {
 
         // Set viewport to fill the whole window area
         glViewport(0, 0, display_w, display_h);
+
+        static float refractive_index = 1.5;
+
+        // Gui start new frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        ImGui::Begin("Settings");
+        ImGui::SliderFloat("Refractive Index", &refractive_index, 1, 3);
+        ImGui::End();
 
         auto camera_position = glm::vec3(
                 glm::cos(theta) * glm::cos(phi) * radius,
@@ -309,7 +333,7 @@ int main(int, char **) {
         object_shader.set_uniform("u_model", glm::value_ptr(object_model));
         object_shader.set_uniform("u_camera_pos", camera_position.x, camera_position.y, camera_position.z);
         object_shader.set_uniform("u_environment", int(0));
-        object_shader.set_uniform("u_refractive_index", 1.1f);
+        object_shader.set_uniform("u_refractive_index", refractive_index);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_CUBE_MAP, environment_texture);
         glBindVertexArray(object_vao);
@@ -327,9 +351,21 @@ int main(int, char **) {
         glDrawArrays(GL_TRIANGLES, 0, object_triangles);
 
         glBindVertexArray(0);
+
+        // Generate gui render commands
+        ImGui::Render();
+
+        // Execute gui render commands using OpenGL backend
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
         // Swap the backbuffer with the frontbuffer that is used for screen display
         glfwSwapBuffers(window);
     }
+
+    // Cleanup
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
 
     glfwDestroyWindow(window);
     glfwTerminate();
