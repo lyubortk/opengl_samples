@@ -39,7 +39,7 @@ void main()
 
     vec3 winter_color = texture(u_winter, texture_coords).rgb;
     vec3 summer_color = texture(u_summer, texture_coords).rgb;
-    float summer_coeff_raw = (u_summer_threshold + 10 - height) / 20.0;
+    float summer_coeff_raw = (u_summer_threshold + 0.1 - height) / 0.2;
     float summer_coeff = max(min(summer_coeff_raw, 1.0), 0.0);
     o_frag_color = vec4(summer_coeff * summer_color + (1 - summer_coeff) * winter_color, 1.0);
 }

@@ -44,40 +44,6 @@ static float phi = 0;
 
 unsigned char *height_data;
 
-static void cursor_callback(GLFWwindow *window, double xpos, double ypos) {
-    static int last_mouse_button = -1;
-    static double prev_x = -1;
-    static double prev_y = -1;
-
-    int mouse_button = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
-
-    double cur_x = -1;
-    double cur_y = -1;
-    glfwGetCursorPos(window, &cur_x, &cur_y);
-
-    if (mouse_button == GLFW_PRESS && last_mouse_button != GLFW_PRESS) {
-        prev_x = cur_x;
-        prev_y = cur_y;
-    }
-    last_mouse_button = mouse_button;
-
-    if (mouse_button != GLFW_PRESS) {
-        return;
-    }
-
-    theta += (cur_x - prev_x) / 300;
-    phi += (cur_y - prev_y) / 300;
-    theta = glm::mod(theta, 2 * glm::pi<float>());
-    if (phi >= glm::pi<float>() / 2) {
-        phi = glm::pi<float>() / 2 - glm::epsilon<float>();
-    }
-    if (phi <= -glm::pi<float>() / 2) {
-        phi = -glm::pi<float>() / 2 + glm::epsilon<float>();
-    }
-    prev_x = cur_x;
-    prev_y = cur_y;
-}
-
 void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) {
     if (yoffset > 0) {
         radius *= 1.1;
@@ -85,8 +51,8 @@ void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) {
         radius /= 1.1;
     }
 
-    radius = std::min(radius, 100.0f);
-    radius = std::max(radius, 0.5f);
+    radius = std::min(radius, 15.0f);
+    radius = std::max(radius, 3.0f);
 }
 
 float a = 0;
@@ -96,12 +62,12 @@ float rot = 0;
 // TODO: use seconds
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
     if (key == GLFW_KEY_W && (action == GLFW_REPEAT || action == GLFW_PRESS)) {
-        b += 0.01 * cos(rot);
-        a += 0.04 * sin(rot);
+        b += 0.005 * cos(rot);
+        a += 0.02 * sin(rot);
     }
     if (key == GLFW_KEY_S && (action == GLFW_REPEAT || action == GLFW_PRESS)) {
-        b -= 0.01 * cos(rot);
-        a -= 0.04 * sin(rot);
+        b -= 0.005 * cos(rot);
+        a -= 0.02 * sin(rot);
     }
     if (key == GLFW_KEY_D && (action == GLFW_REPEAT || action == GLFW_PRESS)) {
         rot -= 0.05;
@@ -109,6 +75,10 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
     if (key == GLFW_KEY_A && (action == GLFW_REPEAT || action == GLFW_PRESS)) {
         rot += 0.05;
     }
+
+    a = glm::mod(a, 1.0f);
+    b = glm::mod(b, 1.0f);
+    rot = glm::mod(rot, glm::pi<float>() * 2);
 }
 
 void create_environment(GLuint &vbo, GLuint &vao) {
@@ -219,39 +189,68 @@ int create_object(GLuint &vbo, GLuint &vao) {
 float r = 2.5;
 float c = 10;
 
+// TODO: rename variables
+float get_height(float u, float v) {
+    int heightmap_u = (int) (u * 512);
+    int heightmap_v = (int) (v * 2048);
+    heightmap_u %= 512;
+    if (heightmap_u < 0) heightmap_u += 512;
+    heightmap_v %= 2048;
+    if (heightmap_v < 0) heightmap_v += 2048;
+    int height = (int) height_data[(512 * heightmap_v + heightmap_u)];
+    return (float) height / 100;
+}
+
+glm::vec3 get_torus_normal(float u, float v) {
+    float TAU = glm::pi<float>() * 2;
+    float nx = cos(u * TAU) * cos(v * TAU);
+    float ny = cos(u * TAU) * sin(v * TAU);
+    float nz = sin(u * TAU);
+    return glm::vec3(nx, ny, nz);
+}
+
+
+glm::vec4 get_point(float u, float v) {
+    float TAU = glm::pi<float>() * 2;
+
+    float x = (c + r * cos(u * TAU)) * cos(v * TAU);
+    float y = (c + r * cos(u * TAU)) * sin(v * TAU);
+    float z = r * sin(u * TAU);
+
+    glm::vec3 torus_normals = get_torus_normal(u, v);
+    float height = get_height(u + 0.5f, v);
+    return glm::vec4(x + torus_normals.x * height, y + torus_normals.y * height, z + torus_normals.z * height, height);
+}
+
+glm::vec3 get_surface_normal(float u, float v) {
+    glm::vec3 u_plus = get_point(u + 1.0 / 512, v);
+    glm::vec3 u_minus = get_point(u - 1.0 / 512, v);
+    glm::vec3 v_plus = get_point(u, v + 1.0 / 2048);
+    glm::vec3 v_minus = get_point(u, v - 1.0 / 2048);
+    glm::vec3 u_diff = glm::normalize(u_minus - u_plus);
+    glm::vec3 v_diff = glm::normalize(v_plus - v_minus);
+    return glm::normalize(glm::cross(u_diff, v_diff));
+}
+
 int create_torus(GLuint &vbo, GLuint &vao) {
     std::vector<float> buffer_data;
 
     int rSeg = 128;
     int cSeg = 64;
 
-    const double PI = 3.1415926535897932384626433832795;
-    const double TAU = 2 * PI;
-
     for (int i = 0; i < rSeg; i++) {
         for (int j = 0; j <= cSeg; j++) {
             for (int k = 0; k <= 1; k++) {
-                float s = (i + k) % rSeg + 0.5f;
-
-                float x = (c + r * cos(s * TAU / rSeg)) * cos(j * TAU / cSeg);
-                float y = (c + r * cos(s * TAU / rSeg)) * sin(j * TAU / cSeg);
-                float z = r * sin(s * TAU / rSeg);
-
-                float u = (i + k) / (float) rSeg + 0.5;
+                float u = (i + k) / (float) rSeg;
                 float v = j / (float) cSeg;
-                if (u > 1.0) u -= 1;
 
-                float nx = cos(s * TAU / rSeg) * cos(j * TAU / cSeg);
-                float ny = cos(s * TAU / rSeg) * sin(j * TAU / cSeg);
-                float nz = sin(s * TAU / rSeg);
+                glm::vec4 point = get_point(u, v);
+                glm::vec3 normal = get_surface_normal(u, v);
 
-                int heightmap_u = (int) (u * 512) % 512;
-                int heightmap_v = (int) (v * 2048) % 2048;
-                int height = (int) height_data[(512 * heightmap_v + heightmap_u)];
-                float height_f = (float) height / 100;
+                float texture_u = u + 0.5;
+                if (texture_u > 1.0) texture_u -= 1.0;
 
-                float data[] = {x + nx * height_f, y + ny * height_f, z + nz * height_f, nx, ny, nz, u, v,
-                                (float) height};
+                float data[] = {point.x, point.y, point.z, normal.x, normal.y, normal.z, texture_u, v, point.w};
                 buffer_data.insert(buffer_data.end(), data, data + 9);
 
             }
@@ -321,10 +320,6 @@ void load_texture(std::string name, GLuint &texture) {
     stbi_image_free(data);
 }
 
-//glm::mat4 compute_spaceship_model() {
-//
-//}
-
 int main(int, char **) {
     // Use GLFW to create a simple window
     glfwSetErrorCallback(glfw_error_callback);
@@ -386,7 +381,6 @@ int main(int, char **) {
     ImGui_ImplOpenGL3_Init(glsl_version);
     ImGui::StyleColorsDark();
 
-    glfwSetCursorPosCallback(window, cursor_callback);
     glfwSetScrollCallback(window, scroll_callback);
     glfwSetKeyCallback(window, key_callback);
 
@@ -402,7 +396,7 @@ int main(int, char **) {
         // Set viewport to fill the whole window area
         glViewport(0, 0, display_w, display_h);
 
-        static float summer_threshold = 65;
+        static float summer_threshold = 0.75;
 
         // Gui start new frame
         ImGui_ImplOpenGL3_NewFrame();
@@ -410,50 +404,45 @@ int main(int, char **) {
         ImGui::NewFrame();
 
         ImGui::Begin("Settings");
-        ImGui::SliderFloat("Summer threshold", &summer_threshold, 0, 255);
+        ImGui::SliderFloat("Summer threshold", &summer_threshold, 0, 3);
         ImGui::End();
 
-//        auto camera_position = glm::vec3(
-//                glm::cos(theta) * glm::cos(phi) * radius,
-//                glm::sin(phi) * radius,
-//                glm::sin(theta) * glm::cos(phi) * radius
-//        );
-//        auto camera_position = glm::vec3(0, 0, -1 * radius);
         auto projection = glm::perspective<float>(glm::radians(90.0f), display_w * 1.0 / display_h, 0.1, 100);
-
         auto object_model = glm::identity<glm::mat4>();
 
-//        auto spaceship_model = compute_spaceship_model();
 // // // // // // // // /// // // // // // // // //
-        float TAU = glm::pi<float>() * 2;
-        float x = (c + r * cos(a * TAU)) * cos(b * TAU);
-        float y = (c + r * cos(a * TAU)) * sin(b * TAU);
-        float z = r * sin(a * TAU);
 
-        // TODO: add real normals
-        float nx = cos(a * TAU) * cos(b * TAU);
-        float ny = cos(a * TAU) * sin(b * TAU);
-        float nz = sin(a * TAU);
+        glm::vec4 point = get_point(a, b);
+        glm::vec3 surface_normal = get_surface_normal(a, b);
+        glm::vec3 torus_normal = get_torus_normal(a, b);
 
-        auto temp = glm::cross(glm::vec3(0, 0, -1), glm::vec3(nx, ny, nz));
-        auto angle = glm::angle(glm::vec3(0, 0, -1), glm::vec3(nx, ny, nz));
+        auto scale = glm::scale(glm::vec3(0.2, 0.2, 0.2));
 
-        auto scale = glm::scale(glm::vec3(0.3, 0.3, 0.3));
-        auto rotate_d = glm::rotate(glm::pi<float>() + rot - (b * TAU), glm::vec3(0, 0, -1)) *
-                glm::rotate(-glm::pi<float>() / 2, glm::vec3(1, 0, 0));
-        auto rotate_l = glm::rotate(angle, temp);
-        auto translate = glm::translate(glm::vec3(x, y, z));
-        auto spaceship_model =  translate * rotate_l * rotate_d * scale;
+        auto rotate_to_surface_normal = glm::rotate(
+                glm::angle(glm::vec3(0, 1, 0), surface_normal),
+                glm::cross(glm::vec3(0, 1, 0), surface_normal)
+        );
+        glm::vec3 current_nose_direction = rotate_to_surface_normal * glm::vec4(0, 0, -1, 0);
+        glm::vec3 expected_nose_direction = glm::rotate(rot, torus_normal) *
+                                            glm::rotate(-b * glm::pi<float>() * 2, glm::vec3(0, 0, -1)) *
+                                            glm::vec4(0, 1, 0, 0);
+        float angle_to_rotate_nose = glm::orientedAngle(
+                current_nose_direction,
+                glm::normalize(glm::cross(surface_normal, expected_nose_direction)),
+                surface_normal) - glm::pi<float>() / 2;
+
+        auto rotate_nose = glm::rotate(angle_to_rotate_nose, surface_normal);
+        auto translate = glm::translate(glm::vec3(point));
+        auto elevate = glm::translate(glm::vec3(0, 0.1, 0));
+        auto spaceship_model = translate * rotate_nose * rotate_to_surface_normal * elevate * scale;
 // // /// /// // // // // // // /// // // /// /// ///
 
-        glm::vec4 temp3 = (rotate_l * rotate_d * glm::vec4(0, 0, -1, 0));
-        glm::vec3 up = glm::vec3(temp3.x, temp3.y, temp3.z);
-        std::cout << temp3.x << ' ' << temp3.y << ' ' << temp3.z << ' ' << temp3.w << std::endl;
-        auto camera_position = glm::vec3(x, y, z) + radius * (0.7f * glm::vec3(nx, ny, nz) - 0.3f * up);
-        auto object_view = glm::lookAt<float>(camera_position, glm::vec3(x, y, z), up);
+        glm::vec3 up = expected_nose_direction;
+        auto camera_position = glm::vec3(point) + radius * (0.7f * glm::vec3(torus_normal) - 0.3f * up);
+        auto object_view = glm::lookAt<float>(camera_position, glm::vec3(point), up);
         auto object_view_projection = projection * object_view;
 
-        auto environment_view = glm::lookAt<float>(glm::vec3(0, 0, 0), glm::vec3(x, y, z) - camera_position, up);
+        auto environment_view = glm::lookAt<float>(glm::vec3(0, 0, 0), glm::vec3(point) - camera_position, up);
         auto environment_view_projection = projection * environment_view;
 
         glDepthMask(GL_TRUE);
