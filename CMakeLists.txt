@@ -30,7 +30,8 @@ add_custom_command(TARGET opengl-imgui-sample
     POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/assets/shaders ${PROJECT_BINARY_DIR}/shaders
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/assets/cubemap ${PROJECT_BINARY_DIR}/cubemap
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/assets/object ${PROJECT_BINARY_DIR}/object
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/assets/torus ${PROJECT_BINARY_DIR}/torus
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/assets/spaceship ${PROJECT_BINARY_DIR}/spaceship
 )
 
 target_compile_definitions(opengl-imgui-sample PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLEW)

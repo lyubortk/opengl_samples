@@ -1,0 +1,24 @@
+# Blender MTL File: 'Space.blend'
+# Material Count: 2
+
+newmtl Material
+Ns 327.450980
+Ka 0.160000 0.160000 0.160000
+Kd 0.024851 0.024851 0.024851
+Ks 0.650000 0.650000 0.650000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 3
+map_Kd /home/lyubortk/Downloads/SpaceShip.png
+
+newmtl Material_NONE
+Ns 327.450980
+Ka 0.160000 0.160000 0.160000
+Kd 0.024851 0.024851 0.024851
+Ks 0.650000 0.650000 0.650000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 3
+map_Kd /home/lyubortk/Downloads/SpaceShip.png

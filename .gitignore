@@ -5,3 +5,4 @@ cmake-build-debug/
 *.exe
 *.dll
 imgui.ini
+/temp/
