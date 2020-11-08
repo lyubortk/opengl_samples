@@ -223,10 +223,10 @@ glm::vec4 get_point(float u, float v) {
 }
 
 glm::vec3 get_surface_normal(float u, float v) {
-    glm::vec3 u_plus = get_point(u + 1.0 / 512, v);
-    glm::vec3 u_minus = get_point(u - 1.0 / 512, v);
-    glm::vec3 v_plus = get_point(u, v + 1.0 / 2048);
-    glm::vec3 v_minus = get_point(u, v - 1.0 / 2048);
+    glm::vec3 u_plus = get_point(u + 2.0 / 512, v);
+    glm::vec3 u_minus = get_point(u - 2.0 / 512, v);
+    glm::vec3 v_plus = get_point(u, v + 4.0 / 2048);
+    glm::vec3 v_minus = get_point(u, v - 4.0 / 2048);
     glm::vec3 u_diff = glm::normalize(u_minus - u_plus);
     glm::vec3 v_diff = glm::normalize(v_plus - v_minus);
     return glm::normalize(glm::cross(u_diff, v_diff));
@@ -418,14 +418,19 @@ int main(int, char **) {
 
         auto scale = glm::scale(glm::vec3(0.2, 0.2, 0.2));
 
-        auto rotate_to_surface_normal = glm::rotate(
-                glm::angle(glm::vec3(0, 1, 0), surface_normal),
-                glm::cross(glm::vec3(0, 1, 0), surface_normal)
-        );
+        glm::mat4 rotate_to_surface_normal = glm::identity<glm::mat4>();
+        if (glm::abs(glm::dot(glm::vec3(0, 1, 0), surface_normal) - 1.0) > glm::epsilon<float>()) {
+            rotate_to_surface_normal = glm::rotate(
+                    glm::angle(glm::vec3(0, 1, 0), surface_normal),
+                    glm::cross(glm::vec3(0, 1, 0), surface_normal)
+            );
+        }
+
         glm::vec3 current_nose_direction = rotate_to_surface_normal * glm::vec4(0, 0, -1, 0);
         glm::vec3 expected_nose_direction = glm::rotate(rot, torus_normal) *
                                             glm::rotate(-b * glm::pi<float>() * 2, glm::vec3(0, 0, -1)) *
                                             glm::vec4(0, 1, 0, 0);
+
         float angle_to_rotate_nose = glm::orientedAngle(
                 current_nose_direction,
                 glm::normalize(glm::cross(surface_normal, expected_nose_direction)),
